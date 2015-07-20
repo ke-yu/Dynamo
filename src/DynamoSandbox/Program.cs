@@ -21,7 +21,7 @@ using Dynamo.ViewModels;
 using DynamoShapeManager;
 
 using Microsoft.Win32;
-
+using Dynamo.DSEngine;
 using Dynamo.Applications;
 
 namespace DynamoSandbox
@@ -78,6 +78,14 @@ namespace DynamoSandbox
         [DllImport("msvcrt.dll")]
         public static extern int _putenv(string env);
 
+        private static void StartExecutionInstance(StartupUtils.CommandLineArguments args)
+        {
+            // May pass more arguments to execution instance...
+            ExecutionInstance instance = new ExecutionInstance();
+            instance.Run();
+            instance.WaitForExit();
+        }
+
         [STAThread]
         public static void Main(string[] args)
         {
@@ -85,6 +93,12 @@ namespace DynamoSandbox
             try
             {
                 var cmdLineArgs = StartupUtils.CommandLineArguments.Parse(args);
+                if (cmdLineArgs.Type == StartupUtils.CommandLineArguments.ExecutionType.Instance)
+                {
+                    StartExecutionInstance(cmdLineArgs);
+                    return;
+                }
+
                 var locale = Dynamo.Applications.StartupUtils.SetLocale(cmdLineArgs);
                     _putenv(locale);
 
