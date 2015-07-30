@@ -124,7 +124,10 @@ limitations under the License.
     <Compile Include="Core\DebugSettings.cs" />
     <Compile Include="Core\Context.cs" />
     <Compile Include="Core\DynamoMigrator.cs" />
+    <Compile Include="Core\IPC\Channel.cs" />
+    <Compile Include="Core\IPC\Listener.cs" />
     <Compile Include="Core\IPC\Message.cs" />
+    <Compile Include="Core\IPC\Sender.cs" />
     <Compile Include="DSEngine\ExecutionInstance.cs" />
     <Compile Include="Extensions\EnumExtension.cs" />
     <Compile Include="Extensions\ExtensionLibraryLoader.cs" />
