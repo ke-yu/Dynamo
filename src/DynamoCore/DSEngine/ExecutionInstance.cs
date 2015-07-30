@@ -14,6 +14,12 @@ namespace Dynamo.DSEngine
     {
         private Queue<Message> messageQueue = new Queue<Message>();
         private Thread messageThread;
+        private string channel;
+
+        public ExecutionInstance(string channel)
+        {
+            this.channel = channel;
+        }
 
         public void Run()
         {

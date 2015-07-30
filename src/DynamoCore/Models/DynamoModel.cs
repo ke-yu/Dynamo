@@ -319,6 +319,8 @@ namespace Dynamo.Models
             get { return _workspaces; } 
         }
 
+        private Dictionary<HomeWorkspaceModel, String> _channelMap = new Dictionary<HomeWorkspaceModel, string>();
+
         /// <summary>
         /// An object which implements the ITraceReconciliationProcessor interface,
         /// and is used for handlling the results of a trace reconciliation.
@@ -1222,11 +1224,14 @@ namespace Dynamo.Models
         /// Lanuch a new process for this home workspace
         /// TODO: Move it to other place.
         /// </summary>
-        private void LaunchExecutionInstance()
+        private void LaunchExecutionInstance(Guid guid)
         {
+            string channel = "dynamo." + guid.ToString().Replace("-", "").ToLower();
+            string argument = "/t 1 /a " + channel;
+
             Process process = new Process();
             process.StartInfo.FileName = Process.GetCurrentProcess().MainModule.FileName;
-            process.StartInfo.Arguments = "/t instance";
+            process.StartInfo.Arguments = argument;
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.WorkingDirectory = Directory.GetCurrentDirectory();
             process.StartInfo.CreateNoWindow = true;
@@ -1243,7 +1248,7 @@ namespace Dynamo.Models
 
         private void RegisterHomeWorkspace(HomeWorkspaceModel newWorkspace)
         {
-            LaunchExecutionInstance();
+            LaunchExecutionInstance(newWorkspace.Guid);
 
             newWorkspace.EvaluationCompleted += OnEvaluationCompleted;
             newWorkspace.RefreshCompleted += OnRefreshCompleted;

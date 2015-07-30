@@ -81,7 +81,7 @@ namespace DynamoSandbox
         private static void StartExecutionInstance(StartupUtils.CommandLineArguments args)
         {
             // May pass more arguments to execution instance...
-            ExecutionInstance instance = new ExecutionInstance();
+            ExecutionInstance instance = new ExecutionInstance(args.Channel);
             instance.Run();
             instance.WaitForExit();
         }

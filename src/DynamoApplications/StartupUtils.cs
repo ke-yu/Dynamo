@@ -107,6 +107,10 @@ namespace Dynamo.Applications
                 // 
                 var executionType = ExecutionType.Host;
 
+                // Communication channel between host and execution instance
+                // DynamoSandbox.exe /a addr
+                var channel = string.Empty;
+
                 bool showHelp = false;
                 var optionsSet = new OptionSet().Add("o=|O=", "OpenFilePath, Instruct Dynamo to open headless and run a dyn file at this path", o => openfilepath = o)
                 .Add("c=|C=", "CommandFilePath, Instruct Dynamo to open a commandfile and run the commands it contains at this path," +
@@ -117,6 +121,7 @@ namespace Dynamo.Applications
                 "this can be set to a statename or 'all', which will evaluate all states in the dyn", s => presetStateid = s)
                 .Add("v=|V=", "Verbose, Instruct Dynamo to output all evalautions it performs to an xml file at this path", v => verbose = v)
                 .Add("t=|T=", "Launch Dynamo in host or instance type", t => executionType = ((ExecutionType) Int32.Parse(t)))
+                .Add("a=|A=", "Communication channel", a => channel = a)
                 .Add("h|H|help", "Get some help", h => showHelp = h != null);
 
                 optionsSet.Parse(args);
@@ -139,7 +144,8 @@ namespace Dynamo.Applications
                     PresetStateID = presetStateid,
                     PresetFilePath = presetFile,
                     Verbose = verbose,
-                    Type = executionType
+                    Type = executionType,
+                    Channel = channel 
                 };
             }
 
@@ -156,6 +162,7 @@ namespace Dynamo.Applications
             public string PresetFilePath { get; set; }
             public string Verbose { get; set; }
             public ExecutionType Type { get; set; }
+            public string Channel { get; set; }
         }
 
         public static void PreloadShapeManager(ref string geometryFactoryPath, ref string preloaderLocation)
