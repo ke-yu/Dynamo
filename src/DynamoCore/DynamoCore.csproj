@@ -127,11 +127,14 @@ limitations under the License.
     <Compile Include="Core\IPC\Message.cs" />
     <Compile Include="DSEngine\ExecutionInstance.cs" />
     <Compile Include="Extensions\EnumExtension.cs" />
+    <Compile Include="Extensions\ExtensionLibraryLoader.cs" />
     <Compile Include="Interfaces\ICustomNodeManager.cs" />
     <Compile Include="Core\PulseMaker.cs" />
     <Compile Include="Core\NodeGraph.cs" />
     <Compile Include="Extensions\ExtensionLoader.cs" />
     <Compile Include="Extensions\ExtensionManager.cs" />
+    <Compile Include="Interfaces\ILibraryLoader.cs" />
+    <Compile Include="Interfaces\ICustomNodeWorkspaceModel.cs" />
     <Compile Include="Interfaces\IWorkspaceModel.cs" />
     <Compile Include="Rendering\DefaultRenderPackageFactory.cs" />
     <Compile Include="Extensions\ExtensionDefinition.cs" />
