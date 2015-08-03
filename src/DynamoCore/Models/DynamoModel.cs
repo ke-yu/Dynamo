@@ -36,6 +36,7 @@ using Compiler = ProtoAssociative.Compiler;
 using Utils = Dynamo.Nodes.Utilities;
 using DefaultUpdateManager = Dynamo.UpdateManager.UpdateManager;
 using FunctionGroup = Dynamo.DSEngine.FunctionGroup;
+using Dynamo.Core.IPC;
 
 namespace Dynamo.Models
 {
@@ -52,6 +53,7 @@ namespace Dynamo.Models
         private readonly PathManager pathManager;
         private WorkspaceModel currentWorkspace;
         private Timer backupFilesTimer;
+        private Communicator communicator;
         private Dictionary<Guid, string> backupFilesDict = new Dictionary<Guid, string>();
         #endregion
 
@@ -318,8 +320,6 @@ namespace Dynamo.Models
         {
             get { return _workspaces; } 
         }
-
-        private Dictionary<HomeWorkspaceModel, String> _channelMap = new Dictionary<HomeWorkspaceModel, string>();
 
         /// <summary>
         /// An object which implements the ITraceReconciliationProcessor interface,
@@ -1220,35 +1220,12 @@ namespace Dynamo.Models
             return true;
         }
 
-        /// <summary>
-        /// Lanuch a new process for this home workspace
-        /// TODO: Move it to other place.
-        /// </summary>
-        private void LaunchExecutionInstance(Guid guid)
-        {
-            string channel = "dynamo." + guid.ToString().Replace("-", "").ToLower();
-            string argument = "/t 1 /a " + channel;
-
-            Process process = new Process();
-            process.StartInfo.FileName = Process.GetCurrentProcess().MainModule.FileName;
-            process.StartInfo.Arguments = argument;
-            process.StartInfo.UseShellExecute = false;
-            process.StartInfo.WorkingDirectory = Directory.GetCurrentDirectory();
-            process.StartInfo.CreateNoWindow = true;
-            try
-            {
-                var returnValue = process.Start();
-            }
-            catch (Exception e)
-            {
-                Logger.Log("Failed to launch execution instance");
-                throw e;
-            }
-        }
-
         private void RegisterHomeWorkspace(HomeWorkspaceModel newWorkspace)
         {
-            LaunchExecutionInstance(newWorkspace.Guid);
+            if (communicator == null)
+                communicator = new Communicator();
+
+            communicator.EstablishChannel(newWorkspace.Guid);
 
             newWorkspace.EvaluationCompleted += OnEvaluationCompleted;
             newWorkspace.RefreshCompleted += OnRefreshCompleted;
