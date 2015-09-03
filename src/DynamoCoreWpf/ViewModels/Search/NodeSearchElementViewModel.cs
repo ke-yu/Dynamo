@@ -19,6 +19,12 @@ namespace Dynamo.Wpf.ViewModels
         private bool isSelected;
         private SearchViewModel searchViewModel;
 
+        public bool IsTopResult
+        {
+            get;
+            set;
+        }
+
         public event RequestBitmapSourceHandler RequestBitmapSource;
         public void OnRequestBitmapSource(IconRequestEventArgs e)
         {
@@ -42,6 +48,20 @@ namespace Dynamo.Wpf.ViewModels
             if (searchViewModel != null)
                 Clicked += searchViewModel.OnSearchElementClicked;
             ClickedCommand = new DelegateCommand(OnClicked);            
+        }
+
+        /// <summary>
+        /// Creates a copy of NodeSearchElementViewModel.
+        /// </summary>
+        public NodeSearchElementViewModel(NodeSearchElementViewModel copyElement)
+        {
+            if (copyElement == null)
+                throw new ArgumentNullException();
+
+            Model = copyElement.Model;
+            Clicked = copyElement.Clicked;
+            RequestBitmapSource = copyElement.RequestBitmapSource;
+            ClickedCommand = copyElement.ClickedCommand;
         }
 
         private void ModelOnVisibilityChanged()
@@ -172,6 +192,8 @@ namespace Dynamo.Wpf.ViewModels
             {
                 var nodeModel = Model.CreateNode();
                 Clicked(nodeModel, Position);
+
+                Dynamo.Services.InstrumentationLogger.LogPiiInfo("Search-NodeAdded", FullName);
             }
         }
 
@@ -219,6 +241,12 @@ namespace Dynamo.Wpf.ViewModels
             : base(element, svm)
         {
             Path = Model.Path;
+        }
+
+        public CustomNodeSearchElementViewModel(CustomNodeSearchElementViewModel copyElement)
+            : base(copyElement)
+        {
+            Path = copyElement.Path;
         }
 
         public string Path

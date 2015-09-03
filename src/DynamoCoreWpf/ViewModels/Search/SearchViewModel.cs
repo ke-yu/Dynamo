@@ -99,17 +99,6 @@ namespace Dynamo.ViewModels
             }
         }
 
-        private SearchMemberGroup topResult;
-        public SearchMemberGroup TopResult
-        {
-            get { return topResult; }
-            set
-            {
-                topResult = value;
-                RaisePropertyChanged("TopResult");
-            }
-        }
-
         /// <summary>
         ///     SearchIconAlignment property
         /// </summary>
@@ -697,7 +686,6 @@ namespace Dynamo.ViewModels
             SearchResults = new ObservableCollection<NodeSearchElementViewModel>(foundNodes);
             RaisePropertyChanged("SearchResults");
 
-            selectionNavigator.UpdateRootCategories(SearchRootCategories);
         }
 
 
@@ -745,13 +733,30 @@ namespace Dynamo.ViewModels
                 category.AddMemberToGroup(elementVM);
             }
 
-            // Update top result before we do not sort categories.
-            if (searchRootCategories.Any())
-                UpdateTopResult(searchRootCategories.FirstOrDefault().MemberGroups.FirstOrDefault());
+            if (nodes.Count() == 0)
+                return;
+
+            // Clone top node.
+            NodeSearchElementViewModel topNode;
+            var firstNode = MakeNodeSearchElementVM(nodes.First());
+            if (firstNode is CustomNodeSearchElementViewModel)
+            {
+                topNode = new CustomNodeSearchElementViewModel(firstNode as CustomNodeSearchElementViewModel);
+            }
             else
-                UpdateTopResult(null);
+            {
+                topNode = new NodeSearchElementViewModel(firstNode);
+            }
+
+            topNode.IsTopResult = true;
 
             SortSearchCategoriesChildren();
+
+            var topCategory = new SearchCategory(Dynamo.Wpf.Properties.Resources.SearchViewTopResult, true);
+            topCategory.AddMemberToGroup(topNode);
+            searchRootCategories.Insert(0, topCategory);
+
+            selectionNavigator.UpdateRootCategories(SearchRootCategories);
         }
 
         private void SortSearchCategoriesChildren()
@@ -859,7 +864,7 @@ namespace Dynamo.ViewModels
         {
             get
             {
-                return selectionNavigator.CurrentlySelection;
+                return selectionNavigator.CurrentSelection;
             }
         }
 
@@ -869,20 +874,6 @@ namespace Dynamo.ViewModels
         public void MoveSelection(NavigationDirection direction)
         {
             selectionNavigator.MoveSelection(direction);
-        }
-
-        private void UpdateTopResult(SearchMemberGroup memberGroup)
-        {
-            if (memberGroup == null)
-            {
-                TopResult = null;
-                return;
-            }
-
-            var topMemberGroup = new SearchMemberGroup(memberGroup.FullyQualifiedName);
-            topMemberGroup.AddMember(memberGroup.Members.First());
-
-            TopResult = topMemberGroup;
         }
 
         internal void ExecuteSelectedMember()
@@ -957,6 +948,8 @@ namespace Dynamo.ViewModels
 
             dynamoViewModel.ExecuteCommand(new DynamoModel.CreateNodeCommand(
                 nodeModel, position.X, position.Y, useDeafultPosition, true));
+
+            dynamoViewModel.ReturnFocusToSearch();
         }
         #endregion
 

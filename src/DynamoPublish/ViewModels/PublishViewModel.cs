@@ -1,6 +1,8 @@
 ﻿using Dynamo.Core;
 using Dynamo.Interfaces;
+using Dynamo.Models;
 using Dynamo.Publish.Models;
+using Dynamo.Publish.Properties;
 using Dynamo.UI.Commands;
 using Dynamo.ViewModels;
 using Dynamo.Wpf.Authentication;
@@ -10,12 +12,19 @@ using System.Collections.Generic;
 using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Threading;
+using System.Linq;
+using Reach;
 
 namespace Dynamo.Publish.ViewModels
 {
     public class PublishViewModel : NotificationObject
     {
         #region Properties
+
+        /// <summary>
+        ///     Helps to show error message just 1 time.
+        /// </summary>
+        private bool firstTimeErrorMessage = true;
 
         private string name;
         public string Name
@@ -45,7 +54,7 @@ namespace Dynamo.Publish.ViewModels
         public string ShareLink
         {
             get { return shareLink; }
-            set
+            private set
             {
                 shareLink = value;
                 RaisePropertyChanged("ShareLink");
@@ -94,7 +103,7 @@ namespace Dynamo.Publish.ViewModels
                     isUploading = value;
                     if (isUploading)
                     {
-                        UploadStateMessage = Resource.UploadingMessage;
+                        UploadStateMessage = Resources.UploadingMessage;
                         IsReadyToUpload = true;
                     }
                     RaisePropertyChanged("IsUploading");
@@ -106,6 +115,14 @@ namespace Dynamo.Publish.ViewModels
 
         public IEnumerable<IWorkspaceModel> Workspaces { get; set; }
         public IWorkspaceModel CurrentWorkspaceModel { get; set; }
+
+        public string ManagerURL
+        {
+            get
+            {
+                return model.ManagerURL;
+            }
+        }
 
         #endregion
 
@@ -123,6 +140,7 @@ namespace Dynamo.Publish.ViewModels
 
             PublishCommand = new DelegateCommand(OnPublish, CanPublish);
             model.UploadStateChanged += OnModelStateChanged;
+            model.CustomizerURLChanged += OnCustomizerURLChanged;
         }
 
         #endregion
@@ -137,34 +155,44 @@ namespace Dynamo.Publish.ViewModels
             if (!model.IsLoggedIn)
                 return;
 
-            model.SendAsynchronously(Workspaces);
+            var workspaceProperties = new WorkspaceProperties();
+            workspaceProperties.Name = Name;
+            workspaceProperties.Description = Description;
+
+            model.SendAsynchronously(Workspaces, workspaceProperties);
         }
 
         private void OnModelStateChanged(PublishModel.UploadState state)
         {
             IsUploading = state == PublishModel.UploadState.Uploading;
+            firstTimeErrorMessage = state == PublishModel.UploadState.Failed;
             BeginInvoke(() => PublishCommand.RaiseCanExecuteChanged());
+        }
+
+        private void OnCustomizerURLChanged(string url)
+        {
+            ShareLink = url;
         }
 
         private bool CanPublish(object obj)
         {
             if (String.IsNullOrWhiteSpace(Name))
             {
-                UploadStateMessage = Resource.ProvideWorskspaceNameMessage;
+                UploadStateMessage = Resources.ProvideWorskspaceNameMessage;
                 IsReadyToUpload = false;
                 return false;
             }
 
             if (String.IsNullOrWhiteSpace(Description))
             {
-                UploadStateMessage = Resource.ProvideWorskspaceDescriptionMessage;
+                UploadStateMessage = Resources.ProvideWorskspaceDescriptionMessage;
                 IsReadyToUpload = false;
                 return false;
             }
 
             if (!model.HasAuthProvider)
             {
-                UploadStateMessage = Resource.ProvideAuthProviderMessage;
+                UploadStateMessage = Resources.ProvideAuthProviderMessage;
                 IsReadyToUpload = false;
                 return false;
             }
@@ -177,14 +205,25 @@ namespace Dynamo.Publish.ViewModels
 
             if (model.State == PublishModel.UploadState.Failed)
             {
-                GenerateErrorMessage();
-                IsReadyToUpload = false;
-                // Even if there is error, user can try submit one more time.
-                // E.g. user typed wrong login or password.
-                return true;
+                if (firstTimeErrorMessage)
+                {
+                    GenerateErrorMessage();
+                    IsReadyToUpload = false;
+
+                    // We should show error message just one time.
+                    firstTimeErrorMessage = false;
+
+                    // Even if there is error, user can try submit one more time.
+                    // E.g. user typed wrong login or password.
+                    return true;
+                }
+                else
+                {
+                    model.ClearState();
+                }
             }
 
-            UploadStateMessage = Resource.ReadyForPublishMessage;
+            UploadStateMessage = Resources.ReadyForPublishMessage;
             IsReadyToUpload = true;
             return true;
         }
@@ -194,16 +233,20 @@ namespace Dynamo.Publish.ViewModels
             switch (model.Error)
             {
                 case PublishModel.UploadErrorType.AuthenticationFailed:
-                    UploadStateMessage = Resource.AuthenticationFailedMessage;
+                    UploadStateMessage = Resources.AuthenticationFailedMessage;
                     break;
                 case PublishModel.UploadErrorType.AuthProviderNotFound:
-                    UploadStateMessage = Resource.AuthManagerNotFoundMessage;
+                    UploadStateMessage = Resources.AuthManagerNotFoundMessage;
                     break;
                 case PublishModel.UploadErrorType.ServerNotFound:
-                    UploadStateMessage = Resource.ServerNotFoundMessage;
+                    UploadStateMessage = Resources.ServerNotFoundMessage;
+                    break;
+                case PublishModel.UploadErrorType.InvalidNodes:
+                    var nodeList = String.Join(", ", model.InvalidNodeNames);
+                    UploadStateMessage = Resources.InvalidNodeMessage + nodeList;
                     break;
                 case PublishModel.UploadErrorType.UnknownServerError:
-                    UploadStateMessage = Resource.UnknownServerErrorMessage;
+                    UploadStateMessage = Resources.UnknownServerErrorMessage;
                     break;
             }
         }
@@ -211,6 +254,11 @@ namespace Dynamo.Publish.ViewModels
         private void BeginInvoke(Action action)
         {
             UIDispatcher.BeginInvoke(action);
+        }
+
+        internal void ClearShareLink()
+        {
+            ShareLink = String.Empty;
         }
 
         #endregion

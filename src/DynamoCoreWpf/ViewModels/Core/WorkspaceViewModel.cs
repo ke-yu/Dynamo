@@ -291,9 +291,6 @@ namespace Dynamo.ViewModels
 
             var annotationsColl = new CollectionContainer {Collection = Annotations};
             _workspaceElements.Add(annotationsColl);
-            // Add EndlessGrid
-            var endlessGrid = new EndlessGridViewModel(this);
-            _workspaceElements.Add(endlessGrid);
 
             //respond to collection changes on the model by creating new view models
             //currently, view models are added for notes and nodes
@@ -303,28 +300,32 @@ namespace Dynamo.ViewModels
             Model.NodeRemoved += Model_NodeRemoved;
             Model.NodesCleared += Model_NodesCleared;
 
-            Model.Notes.CollectionChanged += Notes_CollectionChanged;
-            Model.Annotations.CollectionChanged +=Annotations_CollectionChanged;
+            Model.NoteAdded += Model_NoteAdded;
+            Model.NoteRemoved += Model_NoteRemoved;
+            Model.NotesCleared += Model_NotesCleared;
+
+            Model.AnnotationAdded += Model_AnnotationAdded;
+            Model.AnnotationRemoved += Model_AnnotationRemoved;
+            Model.AnnotationsCleared += Model_AnnotationsCleared;
+
             Model.ConnectorAdded += Connectors_ConnectorAdded;
             Model.ConnectorDeleted += Connectors_ConnectorDeleted;
             Model.PropertyChanged += ModelPropertyChanged;
 
-            DynamoSelection.Instance.Selection.CollectionChanged += 
+            DynamoSelection.Instance.Selection.CollectionChanged +=
                 (sender, e) => RefreshViewOnSelectionChange();
 
             // sync collections
 
-            
+
             foreach (NodeModel node in Model.Nodes) Model_NodeAdded(node);
-            Notes_CollectionChanged(null, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, Model.Notes));
-            Annotations_CollectionChanged(null, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Add, Model.Annotations));
-            foreach (var c in Model.Connectors)
-                Connectors_ConnectorAdded(c);
+            foreach (NoteModel note in Model.Notes) Model_NoteAdded(note);
+            foreach (AnnotationModel annotation in Model.Annotations) Model_AnnotationAdded(annotation);
+            foreach (ConnectorModel connector in Model.Connectors) Connectors_ConnectorAdded(connector);
 
             InCanvasSearchViewModel = new SearchViewModel(DynamoViewModel);
             InCanvasSearchViewModel.Visible = true;
         }
-
 
         void RunSettingsViewModel_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
@@ -338,9 +339,6 @@ namespace Dynamo.ViewModels
         {
             switch (e.PropertyName)
             {
-                case "ShouldBeHitTestVisible":
-                    RaisePropertyChanged("ShouldBeHitTestVisible");
-                    break;
                 case "CurrentSpace":
                     // When workspace is changed(e.g. from home to custom), close InCanvasSearch.
                     OnRequestShowInCanvasSearch(ShowHideFlags.Hide);
@@ -362,51 +360,36 @@ namespace Dynamo.ViewModels
                 _connectors.Remove(connector);
         }
 
-        void Notes_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+        private void Model_NoteAdded(NoteModel note)
         {
-            switch (e.Action)
-            {
-                case NotifyCollectionChangedAction.Add:
-                    foreach (var item in e.NewItems)
-                    {
-                        //add a corresponding note
-                        var viewModel = new NoteViewModel(this, item as NoteModel);
-                        _notes.Add(viewModel);
-                    }
-                    break;
-                case NotifyCollectionChangedAction.Reset:
-                    _notes.Clear();
-                    break;
-                case NotifyCollectionChangedAction.Remove:
-                    foreach (var item in e.OldItems)
-                    {
-                        _notes.Remove(_notes.First(x => x.Model == item));
-                    }
-                    break;
-            }
+            var viewModel = new NoteViewModel(this, note);
+            _notes.Add(viewModel);
         }
 
-        void Annotations_CollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
+        private void Model_NoteRemoved(NoteModel note)
         {
-            switch (e.Action)
-            {
-                case NotifyCollectionChangedAction.Add:
-                    foreach (var item in e.NewItems)
-                    {                     
-                        var viewModel = new AnnotationViewModel(this, item as AnnotationModel);
-                        _annotations.Add(viewModel);
-                    }
-                    break;
-                case NotifyCollectionChangedAction.Reset:
-                    _annotations.Clear();
-                    break;
-                case NotifyCollectionChangedAction.Remove:
-                    foreach (var item in e.OldItems)
-                    {
-                        _annotations.Remove(_annotations.First(x => x.AnnotationModel == item));
-                    }
-                    break;
-            }
+            _notes.Remove(_notes.First(x => x.Model == note));
+        }
+
+        private void Model_NotesCleared()
+        {
+            _notes.Clear();
+        }
+
+        private void Model_AnnotationAdded(AnnotationModel annotation)
+        {
+            var viewModel = new AnnotationViewModel(this, annotation);
+            _annotations.Add(viewModel);
+        }
+
+        private void Model_AnnotationRemoved(AnnotationModel annotation)
+        {
+            _annotations.Remove(_annotations.First(x => x.AnnotationModel == annotation));
+        }
+
+        private void Model_AnnotationsCleared()
+        {
+            _annotations.Clear();
         }
 
 
@@ -563,7 +546,7 @@ namespace Dynamo.ViewModels
 
         internal bool CanNodeToCode(object parameters)
         {
-            return DynamoSelection.Instance.Selection.Count > 0;
+            return DynamoSelection.Instance.Selection.OfType<NodeModel>().Any();
         }
 
         internal void SelectInRegion(Rect2D region, bool isCrossSelect)
@@ -1074,34 +1057,84 @@ namespace Dynamo.ViewModels
 
             var graph = new GraphLayout.Graph();
             var models = new Dictionary<ModelBase, UndoRedoRecorder.UserAction>();
-            
-            foreach (NodeModel x in Model.Nodes)
+
+            foreach (AnnotationModel n in Model.Annotations)
             {
-                graph.AddNode(x.GUID, x.Width, x.Height, x.Y);
-                models.Add(x, UndoRedoRecorder.UserAction.Modification);
+                // Treat a group as a graph layout node/vertex
+                graph.AddNode(n.GUID, n.Width, n.Height, n.Y);
+                models.Add(n, UndoRedoRecorder.UserAction.Modification);
+            }
+
+            foreach (NodeModel n in Model.Nodes)
+            {
+                AnnotationModel group = Model.Annotations.Where(
+                    s => s.SelectedModels.Contains(n)).ToList().FirstOrDefault();
+
+                // Do not process nodes within groups
+                if (group == null)
+                {
+                    graph.AddNode(n.GUID, n.Width, n.Height, n.Y, n.InPorts.Count);
+                    models.Add(n, UndoRedoRecorder.UserAction.Modification);
+                }
             }
 
             foreach (ConnectorModel x in Model.Connectors)
             {
-                graph.AddEdge(x.Start.Owner.GUID, x.End.Owner.GUID, x.Start.Center.Y, x.End.Center.Y);
+                AnnotationModel startGroup = null, endGroup = null;
+                startGroup = Model.Annotations.Where(
+                    s => s.SelectedModels.Contains(x.Start.Owner)).ToList().FirstOrDefault();
+                endGroup = Model.Annotations.Where(
+                    s => s.SelectedModels.Contains(x.End.Owner)).ToList().FirstOrDefault();
+
+                // Connector does not belong to any group
+                if ((startGroup == null) && (endGroup == null))
+                    graph.AddEdge(x.Start.Owner.GUID, x.End.Owner.GUID, x.Start.Center.Y, x.End.Center.Y);
+
+                // Connector starts from a node within a group
+                else if ((startGroup != null) && (endGroup == null))
+                    graph.AddEdge(startGroup.GUID, x.End.Owner.GUID, x.Start.Center.Y, x.End.Center.Y);
+
+                // Connector ends at a node within a group
+                else if ((startGroup == null) && (endGroup != null))
+                    graph.AddEdge(x.Start.Owner.GUID, endGroup.GUID, x.Start.Center.Y, x.End.Center.Y);
+
                 models.Add(x, UndoRedoRecorder.UserAction.Modification);
             }
 
+            // Support undo for graph layout command
             WorkspaceModel.RecordModelsForModification(new List<ModelBase>(Model.Nodes), Model.UndoRecorder);
-            
+
             // Sugiyama algorithm steps
             graph.RemoveCycles();
             graph.AssignLayers();
             graph.OrderNodes();
-            
-            // Assign coordinates to node models
+
             graph.NormalizeGraphPosition();
-            foreach (var x in Model.Nodes)
+
+            // Assign coordinates to nodes inside groups
+            foreach (var x in Model.Annotations)
             {
                 var id = x.GUID;
-                x.X = graph.FindNode(id).X;
-                x.Y = graph.FindNode(id).Y;
-                x.ReportPosition();
+                double deltaX = graph.FindNode(id).X - x.X;
+                double deltaY = graph.FindNode(id).Y - x.Y;
+                foreach (var n in x.SelectedModels)
+                {
+                    n.X += deltaX;
+                    n.Y += deltaY;
+                    n.ReportPosition();
+                }
+            }
+
+            // Assign coordinates to nodes outside groups
+            foreach (var x in Model.Nodes)
+            {
+                var n = graph.FindNode(x.GUID);
+                if (n != null)
+                {
+                    x.X = n.X;
+                    x.Y = n.Y;
+                    x.ReportPosition();
+                }
             }
 
             // Fit view to the new graph layout
@@ -1148,6 +1181,7 @@ namespace Dynamo.ViewModels
             ShowHideAllGeometryPreviewCommand.RaiseCanExecuteChanged();
             SetArgumentLacingCommand.RaiseCanExecuteChanged();
             RaisePropertyChanged("HasSelection");
+            RaisePropertyChanged("IsGeometryOperationEnabled");
             RaisePropertyChanged("AnyNodeVisible");
             RaisePropertyChanged("AnyNodeUpstreamVisible");
             RaisePropertyChanged("SelectionArgumentLacing");

@@ -321,12 +321,26 @@ namespace Dynamo.Core
                 yield break;
             }
 
-            foreach (var file in Directory.EnumerateFiles(dir, "*.dyf"))
+            // Will throw exception if we don't have write access
+            IEnumerable<string> dyfs;
+            try
+            {
+                dyfs = Directory.EnumerateFiles(dir, "*.dyf");
+            }
+            catch (Exception e)
+            {
+                Log(string.Format(Resources.CustomNodeFolderLoadFailure, dir));
+                Log(e);
+                yield break;
+            }
+
+            foreach (var file in dyfs)
             {
                 CustomNodeInfo info;
                 if (TryGetInfoFromPath(file, isTestMode, out info))
                     yield return info;
             }
+
         }
 
         /// <summary>
@@ -377,7 +391,10 @@ namespace Dynamo.Core
 
         public bool TryGetFunctionWorkspace(Guid id, bool isTestMode, out ICustomNodeWorkspaceModel ws)
         {
-            return TryGetFunctionWorkspace(id, isTestMode, out ws);
+            CustomNodeWorkspaceModel workSpace;
+            var result = TryGetFunctionWorkspace(id, isTestMode, out workSpace);
+            ws = workSpace;
+            return result;
         }
 
         /// <summary>
@@ -471,7 +488,8 @@ namespace Dynamo.Core
                     header.Name,
                     header.Category,
                     header.Description, 
-                    path);
+                    path,
+                    header.IsVisibleInDynamoLibrary);
                 return true;
             }
             catch (Exception e)
@@ -525,6 +543,7 @@ namespace Dynamo.Core
                 nodeGraph.Notes,
                 nodeGraph.Annotations,
                 nodeGraph.Presets,              
+                nodeGraph.ElementResolver,
                 workspaceInfo);
 
             
@@ -648,7 +667,8 @@ namespace Dynamo.Core
                 X = 0,
                 Y = 0,
                 ID = newId.ToString(), 
-                FileName = string.Empty
+                FileName = string.Empty,
+                IsVisibleInDynamoLibrary = true
             };
             var workspace = new CustomNodeWorkspaceModel(info, nodeFactory);
 
@@ -877,7 +897,6 @@ namespace Dynamo.Core
                     // compiled to AST, literally it is still in global scope
                     // instead of in function scope.
                     node.GUID = Guid.NewGuid();
-                    node.RenderPackages.Clear();
 
                     // shift nodes
                     node.X = node.X - leftShift;
@@ -896,7 +915,10 @@ namespace Dynamo.Core
                     group.SelectedModels = group.DeletedModelBases;
                     newAnnotations.Add(group);
                 }
-
+                
+                // Now all selected nodes already moved to custom workspace,
+                // clear the selection.
+                DynamoSelection.Instance.ClearSelection();
 
                 foreach (var conn in fullySelectedConns)
                 {
@@ -1095,6 +1117,7 @@ namespace Dynamo.Core
                     Enumerable.Empty<NoteModel>(),
                     newAnnotations,
                     Enumerable.Empty<PresetModel>(),
+                    currentWorkspace.ElementResolver,
                     new WorkspaceInfo()
                     {
                         X = 0,
@@ -1104,8 +1127,7 @@ namespace Dynamo.Core
                         Description = args.Description,
                         ID = newId.ToString(),
                         FileName = string.Empty
-                    },
-                    currentWorkspace.ElementResolver);
+                    });
                 
                 newWorkspace.HasUnsavedChanges = true;
 
@@ -1142,7 +1164,7 @@ namespace Dynamo.Core
                 {
                     undoRecorder.RecordCreationForUndo(connector);
                 }
-            }
+            } 
             return newWorkspace;
         }
 
